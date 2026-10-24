@@ -1,0 +1,75 @@
+name: core-banking-sfd-lite
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sfd-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sfd}
+      POSTGRES_USER: ${POSTGRES_USER:-sfd}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sfd}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: sfd-mailpit
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    container_name: sfd-backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-sfd}
+      DB_USER: ${POSTGRES_USER:-sfd}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-sfd}
+      JWT_SECRET: ${JWT_SECRET:-c2ZkLWRldi1zZWNyZXQtamR3LWhzMjU2LWNvcmUtYmFua2luZy1zZmQtbGl0ZS0yMDI2}
+      MAIL_MODE: ${MAIL_MODE:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_AUTH: ${MAIL_AUTH:-false}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@sfd.tg}
+      APP_URL: ${APP_URL:-http://localhost:8081}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/v3/api-docs || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: sfd-frontend
+    ports:
+      - "${FRONTEND_PORT:-8081}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

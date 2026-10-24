@@ -1,0 +1,17 @@
+# Secrets et environnement local
+.env
+*.log
+
+# Backend
+backend/target/
+backend/*.iml
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# Outils
+.idea/
+*.iml
+.DS_Store

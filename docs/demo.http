@@ -1,0 +1,427 @@
+###############################################################################
+# Core Banking SFD Lite — collection de démonstration
+#
+# Compatible IntelliJ IDEA HTTP Client / JetBrains HTTP Client.
+# Exécuter les requêtes dans l'ordre : les identifiants sont mémorisés dans des
+# variables globales (client.global.set).
+#
+# Prérequis : backend démarré sur http://localhost:8080 et migrations V1 à V4 chargées.
+# Mot de passe de tous les comptes de démonstration : Sfd@2026!
+###############################################################################
+
+@host = http://localhost:8080
+@api = {{host}}/api
+@password = Sfd@2026!
+
+### 0. Swagger UI (navigateur)
+# Ouvrir http://localhost:8080/swagger-ui.html
+# OpenAPI JSON : http://localhost:8080/v3/api-docs
+
+### 1. Connexion AGENT_CREDIT
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "agent@sfd.tg",
+  "motDePasse": "{{password}}"
+}
+
+> {%
+  client.global.set("agentToken", response.body.accessToken);
+  client.global.set("agentRefresh", response.body.refreshToken);
+%}
+
+### 2. Connexion CAISSIER
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "caissier@sfd.tg",
+  "motDePasse": "{{password}}"
+}
+
+> {%
+  client.global.set("caissierToken", response.body.accessToken);
+  client.global.set("caissierRefresh", response.body.refreshToken);
+%}
+
+### 3. Connexion DIRECTEUR
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "directeur@sfd.tg",
+  "motDePasse": "{{password}}"
+}
+
+> {%
+  client.global.set("directeurToken", response.body.accessToken);
+  client.global.set("directeurRefresh", response.body.refreshToken);
+%}
+
+### 4. Connexion ADMIN
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@sfd.tg",
+  "motDePasse": "{{password}}"
+}
+
+> {%
+  client.global.set("adminToken", response.body.accessToken);
+%}
+
+### 5. Connexion COMPTABLE
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "comptable@sfd.tg",
+  "motDePasse": "{{password}}"
+}
+
+> {%
+  client.global.set("comptableToken", response.body.accessToken);
+%}
+
+### 6. Rafraîchissement du jeton (exemple avec l'agent)
+POST {{api}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{agentRefresh}}"
+}
+
+> {%
+  client.global.set("agentToken", response.body.accessToken);
+  client.global.set("agentRefresh", response.body.refreshToken);
+%}
+
+### 7. Agences (lecture authentifiée)
+GET {{api}}/agences
+Authorization: Bearer {{agentToken}}
+
+> {%
+  const kara = response.body.find(a => a.code === "AG002");
+  if (kara) client.global.set("agenceKaraId", kara.id);
+%}
+
+### 8. Produits de crédit
+GET {{api}}/produits-credit
+Authorization: Bearer {{agentToken}}
+
+> {%
+  const commerce = response.body.find(p => p.code === "COMMERCE");
+  client.global.set("produitId", commerce.id);
+%}
+
+### 9. Création d'un client (agence de l'agent)
+POST {{api}}/clients
+Authorization: Bearer {{agentToken}}
+Content-Type: application/json
+
+{
+  "nom": "DOSSOU",
+  "prenom": "Akouvi",
+  "dateNaissance": "1992-05-14",
+  "sexe": "F",
+  "telephone": "90123456",
+  "adresse": "Quartier Bè, Lomé",
+  "profession": "Commerçante",
+  "numeroPiece": "TG-1992-001234"
+}
+
+> {%
+  client.global.set("clientId", response.body.id);
+  client.global.set("clientNumero", response.body.numero);
+%}
+
+### 10. Recherche paginée
+GET {{api}}/clients?q=DOSSOU&page=0&size=20
+Authorization: Bearer {{agentToken}}
+
+### 11. Fiche client (comptes et crédits)
+GET {{api}}/clients/{{clientId}}
+Authorization: Bearer {{agentToken}}
+
+### 12. Ouverture d'un compte d'épargne
+POST {{api}}/clients/{{clientId}}/comptes
+Authorization: Bearer {{agentToken}}
+
+> {%
+  client.global.set("compteId", response.body.id);
+  client.global.set("compteNumero", response.body.numero);
+%}
+
+### 13. Dépôt de 500 000 FCFA
+POST {{api}}/comptes/{{compteId}}/depots
+Authorization: Bearer {{caissierToken}}
+Content-Type: application/json
+
+{
+  "montant": 500000
+}
+
+> {%
+  client.global.set("operationDepotId", response.body.id);
+%}
+
+### 14. Retrait de 50 000 FCFA
+POST {{api}}/comptes/{{compteId}}/retraits
+Authorization: Bearer {{caissierToken}}
+Content-Type: application/json
+
+{
+  "montant": 50000
+}
+
+### 15. Consultation du compte
+GET {{api}}/comptes/{{compteId}}
+Authorization: Bearer {{caissierToken}}
+
+### 16. Relevé paginé
+GET {{api}}/comptes/{{compteId}}/releve?page=0&taille=20
+Authorization: Bearer {{directeurToken}}
+
+### 17. Demande de crédit de 300 000 FCFA sur 6 mois
+POST {{api}}/credits
+Authorization: Bearer {{agentToken}}
+Content-Type: application/json
+
+{
+  "clientId": {{clientId}},
+  "produitId": {{produitId}},
+  "compteId": {{compteId}},
+  "montant": 300000,
+  "dureeMois": 6
+}
+
+> {%
+  client.global.set("creditId", response.body.id);
+  client.global.set("creditNumero", response.body.numero);
+%}
+
+### 18. File d'approbation
+GET {{api}}/credits?statut=DEMANDE&page=0&size=20
+Authorization: Bearer {{directeurToken}}
+
+### 19. Approbation par le directeur
+POST {{api}}/credits/{{creditId}}/approbation
+Authorization: Bearer {{directeurToken}}
+Content-Type: application/json
+
+{
+  "decision": "APPROUVE",
+  "motif": null
+}
+
+### 20. Décaissement par le caissier
+POST {{api}}/credits/{{creditId}}/decaissement
+Authorization: Bearer {{caissierToken}}
+
+### 21. Échéancier
+GET {{api}}/credits/{{creditId}}/echeancier
+Authorization: Bearer {{caissierToken}}
+
+### 22. Remboursement partiel de 100 000 FCFA
+POST {{api}}/credits/{{creditId}}/remboursements
+Authorization: Bearer {{caissierToken}}
+Content-Type: application/json
+
+{
+  "montant": 100000
+}
+
+### 23. Tableau de bord (directeur, consolidé)
+GET {{api}}/dashboard
+Authorization: Bearer {{directeurToken}}
+
+### 24. Tableau de bord filtré sur l'agence de Kara
+GET {{api}}/dashboard?agenceId={{agenceKaraId}}
+Authorization: Bearer {{directeurToken}}
+
+### 25. Balance générale
+GET {{api}}/comptabilite/balance?du=2026-01-01&au=2026-12-31
+Authorization: Bearer {{directeurToken}}
+
+### 26. Grand livre du compte 301 (crédits)
+GET {{api}}/comptabilite/grand-livre?compte=301&du=2026-01-01&au=2026-12-31
+Authorization: Bearer {{comptableToken}}
+
+> {%
+  if (response.body.lignes && response.body.lignes.length > 0) {
+    client.global.set("ecritureId", response.body.lignes[0].ecritureId);
+  }
+%}
+
+### 27. Détail d'une écriture
+GET {{api}}/comptabilite/ecritures/{{ecritureId}}
+Authorization: Bearer {{comptableToken}}
+
+### 28. Extourne de l'écriture (directeur)
+POST {{api}}/comptabilite/ecritures/{{ecritureId}}/extourne
+Authorization: Bearer {{directeurToken}}
+
+### 29. Plan comptable
+GET {{api}}/comptabilite/comptes
+Authorization: Bearer {{comptableToken}}
+
+### 30. Création d'un compte comptable (admin)
+POST {{api}}/comptabilite/comptes
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "numero": "401",
+  "libelle": "Fournisseurs",
+  "type": "PASSIF"
+}
+
+### 31. Liste des utilisateurs (admin)
+GET {{api}}/utilisateurs?page=0&size=20
+Authorization: Bearer {{adminToken}}
+
+### 32. Création d'un utilisateur (admin)
+POST {{api}}/utilisateurs
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "email": "nouveau.caissier@sfd.tg",
+  "nom": "AGBEKO",
+  "prenom": "Kossi",
+  "role": "CAISSIER",
+  "agenceId": 1,
+  "actif": true
+}
+
+# Le mot de passe n'est pas fourni par l'admin. Le backend le génère et l'envoie
+# par e-mail (Mailpit : http://localhost:8025 en Docker, ou logs backend en
+# MAIL_MODE=journal). L'utilisateur doit ensuite appeler l'endpoint ci-dessous.
+
+@motDePasseTemporaire = remplacez-par-le-mot-de-passe-recu
+
+### 32b. Première connexion du nouvel utilisateur
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "nouveau.caissier@sfd.tg",
+  "motDePasse": "{{motDePasseTemporaire}}"
+}
+
+> {%
+  client.global.set("nouvelUtilisateurToken", response.body.accessToken);
+%}
+
+### 32c. Changement obligatoire du mot de passe
+POST {{api}}/auth/mot-de-passe
+Authorization: Bearer {{nouvelUtilisateurToken}}
+Content-Type: application/json
+
+{
+  "motDePasseActuel": "{{motDePasseTemporaire}}",
+  "nouveauMotDePasse": "Nouveau@2026!"
+}
+
+### 33. Création d'un produit de crédit (admin)
+POST {{api}}/produits-credit
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "code": "EQUIPEMENT",
+  "libelle": "Crédit équipement",
+  "tauxAnnuel": 15.500,
+  "dureeMinMois": 6,
+  "dureeMaxMois": 36,
+  "montantMin": 100000,
+  "montantMax": 10000000,
+  "fraisDossierPct": 2.00,
+  "modeAmortissement": "ANNUITE_CONSTANTE",
+  "actif": true
+}
+
+###############################################################################
+# Cas d'erreur attendus
+###############################################################################
+
+### E1. Retrait supérieur au solde → 400 SOLDE_INSUFFISANT
+POST {{api}}/comptes/{{compteId}}/retraits
+Authorization: Bearer {{caissierToken}}
+Content-Type: application/json
+
+{
+  "montant": 999999999
+}
+
+### E2. Remboursement supérieur au restant dû → 400 SURPAIEMENT
+POST {{api}}/credits/{{creditId}}/remboursements
+Authorization: Bearer {{caissierToken}}
+Content-Type: application/json
+
+{
+  "montant": 999999999
+}
+
+### E3. Auto-approbation interdite → 403 AUTO_APPROBATION_INTERDITE
+# L'ADMIN crée lui-même une demande, puis tente de l'approuver.
+POST {{api}}/credits
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "clientId": {{clientId}},
+  "produitId": {{produitId}},
+  "compteId": {{compteId}},
+  "montant": 150000,
+  "dureeMois": 3
+}
+
+> {%
+  client.global.set("creditAutoId", response.body.id);
+%}
+
+###
+POST {{api}}/credits/{{creditAutoId}}/approbation
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "decision": "APPROUVE"
+}
+
+### E4. Client d'une autre agence → 404 RESSOURCE_INTROUVABLE
+# L'ADMIN crée un client dans l'agence AG002 (Kara).
+POST {{api}}/clients
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "nom": "KARA",
+  "prenom": "Client",
+  "sexe": "M",
+  "telephone": "90999999",
+  "profession": "Artisan",
+  "agenceId": {{agenceKaraId}}
+}
+
+> {%
+  client.global.set("clientKaraId", response.body.id);
+%}
+
+###
+# Le caissier de AG001 tente de lire le client de AG002.
+GET {{api}}/clients/{{clientKaraId}}
+Authorization: Bearer {{caissierToken}}
+
+### E5. Route interdite au rôle → 403 ACCES_REFUSE
+# Un caissier tente d'approuver un crédit.
+POST {{api}}/credits/{{creditId}}/approbation
+Authorization: Bearer {{caissierToken}}
+Content-Type: application/json
+
+{
+  "decision": "APPROUVE"
+}

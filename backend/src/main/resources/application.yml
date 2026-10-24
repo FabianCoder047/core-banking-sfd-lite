@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: core-banking-sfd-lite
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sfd}
+    username: ${DB_USER:sfd}
+    password: ${DB_PASSWORD:sfd}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        default_batch_fetch_size: 50
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    default-property-inclusion: non_null
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_AUTH:false}
+          starttls:
+            enable: ${MAIL_STARTTLS:false}
+
+server:
+  port: 8080
+  error:
+    include-message: never
+
+sfd:
+  jwt:
+    # Secret de developpement uniquement. A surcharger via JWT_SECRET en production.
+    secret: ${JWT_SECRET:c2ZkLWRldi1zZWNyZXQtamR3LWhzMjU2LWNvcmUtYmFua2luZy1zZmQtbGl0ZS0yMDI2}
+    access-minutes: 15
+    refresh-days: 7
+  credit:
+    max-credits-decaisse: 2
+  pagination:
+    max-size: 100
+  mail:
+    # Les messages ne sont jamais ecrits dans les logs.
+    mode: ${MAIL_MODE:smtp}
+    expediteur: ${MAIL_FROM:no-reply@sfd.tg}
+  app:
+    url: ${APP_URL:http://localhost:4200}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+logging:
+  level:
+    org.hibernate.SQL: warn
